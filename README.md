@@ -46,4 +46,4 @@ It may or may not work on other EUI versions, so just give it a try and look int
 
 
 ### Support:
-If you have any questions or feedback please visit the [TODO INSERT LINK related thread on the XDA developers forum](http://forum.xda-developers.com/le-pro3/development/TODO) 
+If you have any questions or feedback please visit [this thread on the XDA developers forum](http://forum.xda-developers.com/le-pro3/development/mod-make-infrared-blaster-3rd-party-t3511572) 
