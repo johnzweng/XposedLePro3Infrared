@@ -36,8 +36,8 @@ android {
         applicationId "at.zweng.xposed.lepro3infrared"
         minSdkVersion 19
         targetSdkVersion 23
-        versionCode 14
-        versionName "1.1-RC8"
+        versionCode 16
+        versionName "1.1"
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
