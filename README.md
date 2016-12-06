@@ -1,4 +1,4 @@
-# Xposed Module "LePro 3 Infrared Fix"
+# Xposed Module "LeEco Infrared Fix"
 
 
 ### What's this:
@@ -9,7 +9,12 @@ This is a module for the [Xposed Framework](http://repo.xposed.info/). You need 
 
 ### What this module can do for you:
 
-**Note**: This module is made for the **LeEco LePro 3** phone (LEX720 and LEX727) running EUI.
+**Note**: This module was initially made for the **LeEco LePro 3** phone (LEX720 and LEX727) running EUI. Several XDA users have confirmed that it is working on other LeEco phones too:
+
+- LeEco Le Pro 3 X720 running EUI 5.8.018S
+- LeEco Le 2 X526 running EUI 5.9.020S
+- LeEco Le Max 2 X820 running  [Madsurfer's 21s EUI 5.9 Rom](http://forum.xda-developers.com/le-max-2/development/madsurfers-21s-eui-5-9-rom-t3497125)
+- *maybe other LeEco phones too? Please report in the XDA thread if it works on other phones too!*
 
 The LePro 3 contains an infrared (IR) blaster but it can only be used with the preinstalled remote control app from LeEco. Other 3rd party apps from the Play Store don't work. This Xposed module tries to **make the IR blaster** of the LePro3 **usable for all 3rd party Infrared apps**.
 
@@ -23,7 +28,7 @@ Instead of the Android Infrared API this device uses the QuickSet SDK (from Univ
 
 This module here overrides the methods in Androids `ConsumerIrService` class, tries to bind the UEI Control Service (*UEI QuickSet Service*) and tries to forward all calls which are received over the standard Android [ConsumerIrManager API](https://developer.android.com/reference/android/hardware/ConsumerIrManager.html) to the QuickSet SDK API. So this module tries to act as a bridge between these two APIs.
 
-If you are interested in the technical background [read this thread on XDA](http://forum.xda-developers.com/le-pro3/development/ref-how-infrared-lepro3-infos-ir-devs-t3506257) where I explain it in detail.
+If you are interested in the technical background read this thread on XDA where I explain it in detail: [[REF] How Infrared is (not) working on LePro3 - some infos for IR devs](http://forum.xda-developers.com/le-pro3/development/ref-how-infrared-lepro3-infos-ir-devs-t3506257)
 
 
 ### Restrictions:
@@ -34,16 +39,17 @@ If you are interested in the technical background [read this thread on XDA](http
 
 ### Supported EUI Version:
 
-This module was developed and tested on the following device:
+This module was developed and tested on the following device, **but it may work on other devices too** (*I just have this single device for testing*):
 
 - Device **LeEco LePro 3 (LEX720)**
 - Firmware version: **5.8.018S**
 - Build-ID: **WAXCNFN5801811012S**
 
-It may or may not work on other EUI versions, so just give it a try and look into the logcat logs and search for lines containig the tag: `LePro3_Infrared_Fix`.
+It may or may not work on other EUI versions, so just give it a try and look into the logcat logs and search for lines containig the tag: `LeEco_Infrared_Fix`.
 
 **Please leave your feedback in the XDA thread below if you find it working for other versions or ROMs!** Thanks! :-)
 
 
 ### Support:
-If you have any questions or feedback please visit [this thread on the XDA developers forum](http://forum.xda-developers.com/le-pro3/development/mod-make-infrared-blaster-3rd-party-t3511572) 
+If you have any questions or feedback please visit this thread on the XDA developers forum: [[MOD][Xposed] Make Infrared Blaster working with all 3rd party apps (on EUI)
+](http://forum.xda-developers.com/le-pro3/development/mod-make-infrared-blaster-3rd-party-t3511572) 
