@@ -34,10 +34,10 @@ android {
     buildToolsVersion "25.0.0"
     defaultConfig {
         applicationId "at.zweng.xposed.lepro3infrared"
-        minSdkVersion 23
+        minSdkVersion 19
         targetSdkVersion 23
-        versionCode 11
-        versionName "1.0"
+        versionCode 14
+        versionName "1.1-RC8"
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
     }
     buildTypes {

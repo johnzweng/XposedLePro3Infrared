@@ -5,9 +5,6 @@ import android.content.pm.FeatureInfo;
 import android.content.pm.PackageManager;
 import android.util.Log;
 
-import java.util.Arrays;
-import java.util.List;
-
 import de.robv.android.xposed.XC_MethodHook;
 
 import static at.zweng.xposed.lepro3infrared.XposedMain.CONSUMERIR_CARRIER_FREQUENCIES;
@@ -158,10 +155,12 @@ public class MethodHooks {
                 consumerIrFeature.name = PackageManager.FEATURE_CONSUMER_IR;
                 consumerIrFeature.flags = 0;
                 consumerIrFeature.reqGlEsVersion = 0;
-                List<FeatureInfo> list = Arrays.asList(featuresArray);
-                list.add(consumerIrFeature);
-                // and set new list as result
-                param.setResult(list.toArray());
+                // add feature to feature list array
+                FeatureInfo[] newFeaturesArray = new FeatureInfo[featuresArray.length + 1];
+                System.arraycopy(featuresArray, 0, newFeaturesArray, 0, featuresArray.length);
+                newFeaturesArray[newFeaturesArray.length-1] = consumerIrFeature;
+                // and set new array as result
+                param.setResult(newFeaturesArray);
             } else {
                 // TODO remove logging
                 log(TAG + ": getSystemAvailableFeaturesHook: return value already contains IR, will do nothing");

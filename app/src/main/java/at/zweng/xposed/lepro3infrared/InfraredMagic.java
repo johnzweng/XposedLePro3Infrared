@@ -10,7 +10,7 @@ import android.util.Log;
 import at.zweng.xposed.lepro3infrared.quicksetservice.IControl;
 
 import static at.zweng.xposed.lepro3infrared.XposedMain.TAG;
-
+import static de.robv.android.xposed.XposedBridge.log;
 
 /**
  * Perform the actual infrared magic in here...
@@ -94,7 +94,14 @@ public class InfraredMagic {
             Intent controlIntent = new Intent(IControl.ACTION);
             controlIntent.setClassName(IControl.QUICKSET_UEI_PACKAGE_NAME, IControl.QUICKSET_UEI_SERVICE_CLASS);
             boolean bindResult = mContext.bindService(controlIntent, mControlServiceConnection, Context.BIND_AUTO_CREATE);
-            Log.d(TAG, "bindService() result: " + bindResult);
+            if (!bindResult) {
+                Log.e(TAG, "bindResult == false. QuickSet SDK service seems NOT TO BE AVAILABLE ON THIS PHONE! IR Blaster will probably NOT WORK!");
+                Log.e(TAG, "QuickSet SDK service package/class: " + IControl.QUICKSET_UEI_PACKAGE_NAME + "/" + IControl.QUICKSET_UEI_SERVICE_CLASS);
+                log(TAG + ": QuickSet SDK service seems NOT TO BE AVAILABLE ON THIS PHONE! IR Blaster will probably NOT WORK!");
+                log(TAG + ": QuickSet SDK service package/class: " + IControl.QUICKSET_UEI_PACKAGE_NAME + "/" + IControl.QUICKSET_UEI_SERVICE_CLASS);
+            } else {
+                Log.d(TAG, "bindService() result: true");
+            }
         } catch (Throwable t) {
             Log.e(TAG, "Binding QuickSet Control service failed with exception :-(", t);
         }
