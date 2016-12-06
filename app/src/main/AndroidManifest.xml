@@ -12,7 +12,7 @@
             android:value="true" />
         <meta-data
             android:name="xposeddescription"
-            android:value="Make Infrared blaster usable for all IR apps on the LeEco LePro3 phone (running EUI). Might or might not work on other ROMs or phones. In case of troubles search in logcat for 'LePro3_Infrared_Fix' messages. \nMade by androcheck@XDA" />
+            android:value="Make Infrared blaster usable for all IR apps on several LeEco phones (running EUI). Might or might not work on other ROMs or phones. In case of troubles search in logcat for 'LeEco_Infrared_Fix' messages. \nMade by androcheck@XDA\nXDA-Thread: https://goo.gl/kZYp9q" />
         <meta-data
             android:name="xposedminversion"
             android:value="82" />
