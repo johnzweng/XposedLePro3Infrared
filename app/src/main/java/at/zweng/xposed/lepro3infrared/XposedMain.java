@@ -27,7 +27,7 @@ import static de.robv.android.xposed.XposedHelpers.findMethodExact;
 import static de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam;
 
 /**
- * Xposed Module "LePro 3 Infrared Fix"<br>
+ * Xposed Module "LeEco Infrared Fix"<br>
  * Hooks the default Infrared API (ConsumerIrService) and tries
  * to forward all API calls to the "QuickSet SDK service"
  * (=3rd party service used on LeEco phones for controlling
@@ -37,7 +37,7 @@ import static de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam;
  */
 public class XposedMain implements IXposedHookLoadPackage {
 
-    public final static String TAG = "LePro3_Infrared_Fix";
+    public final static String TAG = "LeEco_Infrared_Fix";
 
     // frequency ranges to report back over ConsumerIr API (taken from AOSP dummy HAL implementation)
     public final static int[] CONSUMERIR_CARRIER_FREQUENCIES = {30000, 30000, 33000, 33000, 36000, 36000, 38000, 38000, 40000, 40000, 56000, 56000};

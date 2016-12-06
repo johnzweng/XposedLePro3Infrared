@@ -28,6 +28,7 @@ public class MethodHooks {
     protected static final XC_MethodHook hasIrEmitterHook = new XC_MethodHook() {
         @Override
         protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+            Log.v(TAG, "hasIrEmitter was called, returning true");
             // always return "true" on hasIrEmitter():
             param.setResult(true);
         }
@@ -39,6 +40,7 @@ public class MethodHooks {
     protected static final XC_MethodHook getCarrierFrequenciesHook = new XC_MethodHook() {
         @Override
         protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+            Log.v(TAG, "getCarrierFrequencies was called, returning default frequencies");
             // Always return a fixed list of supported carrier frequencies
             // I took this list from the AOSP example consumer_ir.c implementation:
             // https://android.googlesource.com/platform/hardware/libhardware/+/android-6.0.1_r74/modules/consumerir/consumerir.c#27
@@ -66,7 +68,7 @@ public class MethodHooks {
     protected static final XC_MethodHook constructorHook = new XC_MethodHook() {
         @Override
         protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-            Log.i(TAG, "Constructor hook called! Try to store context parameter.");
+            Log.v(TAG, "Constructor hook called. Try to store context parameter.");
             INFRARED_MAGIC.setContext((Context) param.args[0]);
         }
     };
@@ -83,6 +85,7 @@ public class MethodHooks {
             int[] pattern = (int[]) param.args[2];
             int errorCode = INFRARED_MAGIC.transmitIrPattern(carrierFrequency, pattern);
             // return our value to prevent real method to be called
+            Log.v(TAG, "halTransmit was called. return value: " + errorCode);
             param.setResult(errorCode);
         }
     };
@@ -94,7 +97,7 @@ public class MethodHooks {
         @Override
         protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
             // Method: private static native long com.android.server.ConsumerIrService.halOpen();
-            Log.i(TAG, "halOpen called, returning dummy value 1 (to prevent real method to be called)");
+            Log.v(TAG, "halOpen called, returning dummy value 1 (to prevent real method to be called)");
             INFRARED_MAGIC.bindQuickSetService();
             long result = 1;
             param.setResult(result);
@@ -106,7 +109,6 @@ public class MethodHooks {
     // ** PACKAGE MANAGER SERVICE HOOKS: **
     // ******************************+*****
 
-
     /**
      * Method hook for hasSystemFeature method:
      */
@@ -116,9 +118,7 @@ public class MethodHooks {
             String featureName = (String) param.args[0];
             // if somebody asks for Infrared feature, then let's return true:
             if (PackageManager.FEATURE_CONSUMER_IR.equals(featureName)) {
-                // TODO remove logging
-                log(TAG + ": hasSystemFeatureHook: Consumer IR was requested. Will return true.");
-                Log.i(TAG, "hasSystemFeatureHook: Consumer IR was requested. Will return true.");
+                Log.v(TAG, "hasSystemFeatureHook: Consumer IR was requested. Will return true.");
                 param.setResult(true);
             }
         }
@@ -149,8 +149,7 @@ public class MethodHooks {
                 }
             }
             if (!containsIr) {
-                log(TAG + ": getSystemAvailableFeaturesHook: return value doesn't contain consumerIR, so we will add it");
-                Log.i(TAG, "getSystemAvailableFeaturesHook: return value doesn't contain consumerIR, so we will add it");
+                Log.v(TAG, "getSystemAvailableFeaturesHook: return value doesn't contain consumerIR, so we will add it");
                 FeatureInfo consumerIrFeature = new FeatureInfo();
                 consumerIrFeature.name = PackageManager.FEATURE_CONSUMER_IR;
                 consumerIrFeature.flags = 0;
@@ -158,15 +157,12 @@ public class MethodHooks {
                 // add feature to feature list array
                 FeatureInfo[] newFeaturesArray = new FeatureInfo[featuresArray.length + 1];
                 System.arraycopy(featuresArray, 0, newFeaturesArray, 0, featuresArray.length);
-                newFeaturesArray[newFeaturesArray.length-1] = consumerIrFeature;
+                newFeaturesArray[newFeaturesArray.length - 1] = consumerIrFeature;
                 // and set new array as result
                 param.setResult(newFeaturesArray);
             } else {
-                // TODO remove logging
-                log(TAG + ": getSystemAvailableFeaturesHook: return value already contains IR, will do nothing");
-                Log.i(TAG, "getSystemAvailableFeaturesHook: return value already contains IR, will do nothing");
+                Log.v(TAG, "getSystemAvailableFeaturesHook: return value already contains IR, will do nothing");
             }
-
         }
     };
 
