@@ -1,11 +1,7 @@
 package at.zweng.xposed.lepro3infrared;
 
 
-import android.content.ComponentName;
 import android.content.Context;
-import android.content.Intent;
-import android.content.ServiceConnection;
-import android.os.IBinder;
 import android.util.Log;
 
 import java.io.File;
@@ -13,16 +9,22 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.lang.reflect.Method;
 
-import at.zweng.xposed.lepro3infrared.quicksetservice.IControl;
 import de.robv.android.xposed.IXposedHookLoadPackage;
-import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
-import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
+import static at.zweng.xposed.lepro3infrared.MethodHooks.constructorHook;
+import static at.zweng.xposed.lepro3infrared.MethodHooks.getCarrierFrequenciesHook;
+import static at.zweng.xposed.lepro3infrared.MethodHooks.getSystemAvailableFeaturesHook;
+import static at.zweng.xposed.lepro3infrared.MethodHooks.halOpenHook;
+import static at.zweng.xposed.lepro3infrared.MethodHooks.hasSystemFeatureHook;
+import static at.zweng.xposed.lepro3infrared.MethodHooks.throwIfNoIrEmitterHook;
+import static at.zweng.xposed.lepro3infrared.MethodHooks.hasIrEmitterHook;
+import static at.zweng.xposed.lepro3infrared.MethodHooks.halTransmitHook;
 import static de.robv.android.xposed.XposedBridge.log;
 import static de.robv.android.xposed.XposedHelpers.findAndHookConstructor;
 import static de.robv.android.xposed.XposedHelpers.findClass;
 import static de.robv.android.xposed.XposedHelpers.findMethodExact;
+import static de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam;
 
 /**
  * Xposed Module "LePro 3 Infrared Fix"<br>
@@ -35,138 +37,20 @@ import static de.robv.android.xposed.XposedHelpers.findMethodExact;
  */
 public class XposedMain implements IXposedHookLoadPackage {
 
+    public final static String TAG = "LePro3_Infrared_Fix";
+
+    // frequency ranges to report back over ConsumerIr API (taken from AOSP dummy HAL implementation)
+    public final static int[] CONSUMERIR_CARRIER_FREQUENCIES = {30000, 30000, 33000, 33000, 36000, 36000, 38000, 38000, 40000, 40000, 56000, 56000};
+    // sys-file for power-on/power-off on some LeEco devices (not present on all phones)
     private final static String SYS_FILE_ENABLE_IR_BLASTER = "/sys/remote/enable";
-    private final static String CONSUMER_IR_SERVICE_HOST_PACKAGE = "android";
+    // package name to hook for the services (PackageManager, ConsumerIr)
+    private final static String ANDROID_CORE_SERVICES_PACKAGE = "android";
+    // package name used for hitchhiking on higher SE Linux context permissions (to write the sysfile)
     private final static String ANDROID_SETTINGS_PACKAGE = "com.android.settings";
-    private final static String TAG = "LePro3_Infrared_Fix";
-
-    /**
-     * Client API for the QuickSet control service:
-     */
-    private static IControl sControl;
-
-    /**
-     * Store reference to context
-     */
-    private static Context sContext;
-
-    /**
-     * Method hook for constructor:
-     */
-    protected static final XC_MethodHook constructorHook = new XC_MethodHook() {
-        @Override
-        protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-            Log.i(TAG, "Constructor hook called! Try to store context parameter.");
-            sContext = (Context) param.args[0];
-            Log.i(TAG, "--> context obj: " + sContext);
-        }
-    };
-
-    /**
-     * if the quickset service is bound
-     */
-    private static boolean sBound = false;
-
-    /**
-     * Service Connection used to control the bound QuickSet SDK Service
-     */
-    private static ServiceConnection mControlServiceConnection = new ServiceConnection() {
-
-        @Override
-        public void onServiceConnected(ComponentName name, IBinder service) {
-            sBound = true;
-            sControl = new IControl(service);
-            Log.i(TAG, "QuickSet SDK Service (for controlling IR Blaster) SUCCESSFULLY CONNECTED! Yeah! :-)");
-        }
-
-        @Override
-        public void onServiceDisconnected(ComponentName name) {
-            sBound = false;
-            sControl = null;
-            Log.i(TAG, "QuickSet SDK Service (for controlling IR Blaster) DISCONNECTED!");
-        }
-    };
-
-    /**
-     * Method hook for halTransmit method:
-     */
-    protected static final XC_MethodHook transmitHook = new XC_MethodHook() {
-        @Override
-        protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-            // Method: private static native int com.android.server.ConsumerIrService.halTransmit(long,int,int[]);
-            int carrierFrequency = (int) param.args[1];
-            int[] pattern = (int[]) param.args[2];
-            int errorCode = transmitIrPattern(carrierFrequency, pattern);
-            // return our value to prevent real method to be called
-            param.setResult(errorCode);
-        }
-    };
-
-    /**
-     * Method hook for halOpen method:
-     */
-    protected static final XC_MethodHook halOpenHook = new XC_MethodHook() {
-        @Override
-        protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-            // Method: private static native long com.android.server.ConsumerIrService.halOpen();
-            Log.i(TAG, "halOpen called, returning dummy value 1 (to prevent real method to be called)");
-            bindQuickSetService();
-            long result = 1;
-            param.setResult(result);
-        }
-    };
-
-    /**
-     * Try to bind QuickSet SDK Service
-     */
-    private static void bindQuickSetService() {
-        Log.d(TAG, "Trying to bind QuickSet service (for controlling IR Blaster): " + IControl.QUICKSET_UEI_PACKAGE_NAME + " - " + IControl.QUICKSET_UEI_SERVICE_CLASS);
-        if (sContext == null) {
-            Log.w(TAG, "Cannot bind QuickSet control service (now), as context is null. :-(");
-            return;
-        }
-        try {
-            Intent controlIntent = new Intent(IControl.ACTION);
-            controlIntent.setClassName(IControl.QUICKSET_UEI_PACKAGE_NAME, IControl.QUICKSET_UEI_SERVICE_CLASS);
-            boolean bindResult = sContext.bindService(controlIntent, mControlServiceConnection, Context.BIND_AUTO_CREATE);
-            Log.d(TAG, "bindService() result: " + bindResult);
-        } catch (Exception e) {
-            Log.e(TAG, "Binding QuickSet Control service failed with exception :-(", e);
-        }
-    }
-
-    /**
-     * Try to send Infrared pattern, catch and log exceptions.
-     *
-     * @param carrierFrequency carrier frequency, see ConsumerIrManager Android API
-     * @param pattern          IR pattern to send, see ConsumerIrManager Android API
-     */
-    private static int transmitIrPattern(int carrierFrequency, int[] pattern) {
-        //Log.d(TAG, "transmitIrPattern called: freq: " + carrierFrequency + ", pattern-len: " + pattern.length);
-        if (sControl == null || !sBound) {
-            Log.w(TAG, "QuickSet Service (for using IR Blaster) seems not to be bound. Trying to bind again and exit.");
-            bindQuickSetService();
-            // return something != 0 to indicate error
-            return 999;
-        }
-        try {
-            sControl.transmit(carrierFrequency, pattern);
-            int resultCode = sControl.getLastResultcode();
-            if (resultCode != 0) {
-                Log.w(TAG, "resultCode after calling transmit on QuickSet SDK was != 0. No idea what this means. lastResultcode: " + resultCode);
-            }
-            return resultCode;
-        } catch (Exception e) {
-            Log.e(TAG, "Exception while trying to send command to QuickSet Service. :-(", e);
-            // return something != 0 to indicate error
-            return 999;
-        }
-    }
-
 
     /**
      * Enable IR blaster in background thread. We start a (short-living) thread here, as
-     * this write operation is blocking for 1500ms in the kernel.
+     * this write operation is blocking for 1500ms in the kernel driver.
      */
     private static void enableIrBlasterInBackgroundThread() {
         new Thread(new Runnable() {
@@ -188,7 +72,11 @@ public class XposedMain implements IXposedHookLoadPackage {
         try {
             File enableFile = new File(SYS_FILE_ENABLE_IR_BLASTER);
             if (!enableFile.exists()) {
-                log(TAG + ": sys-file '" + SYS_FILE_ENABLE_IR_BLASTER + "' doesn't exist. Cannot enable IR Blaster. :-(");
+                log(TAG + ": sys-file '" + SYS_FILE_ENABLE_IR_BLASTER + "' doesn't exist on this phone. Maybe this phone doesn't support this mechanism for IR blaster power-on?");
+                return;
+            }
+            if (!enableFile.isFile()) {
+                log(TAG + ": sys-file '" + SYS_FILE_ENABLE_IR_BLASTER + "' is not a file! Strange... ??");
                 return;
             }
             if (!enableFile.canWrite()) {
@@ -202,7 +90,10 @@ public class XposedMain implements IXposedHookLoadPackage {
             log(TAG + ": Success! IR Blaster successfully enabled. Set '" + SYS_FILE_ENABLE_IR_BLASTER + "' to 1. :-)");
         } catch (IOException e1) {
             Log.e(TAG, "Exception when opening sys file " + SYS_FILE_ENABLE_IR_BLASTER + ". Cannot enable IR Blaster. :-(", e1);
-            log(TAG + ": Exception when opening sys file " + SYS_FILE_ENABLE_IR_BLASTER + ". Cannot enable IR Blaster. :-( \n" + e1.toString());
+            log(TAG + ": Exception when opening sys file " + SYS_FILE_ENABLE_IR_BLASTER + ". Cannot enable IR Blaster. :-( \n" + e1.toString() + "\n" + e1.getMessage());
+        } catch (Throwable t1) {
+            Log.e(TAG, "Throwable when opening sys file " + SYS_FILE_ENABLE_IR_BLASTER + ". Cannot enable IR Blaster. :-(\n" + t1.toString() + "\n" + t1.getMessage());
+            log(TAG + ": Throwable when opening sys file " + SYS_FILE_ENABLE_IR_BLASTER + ". Cannot enable IR Blaster. :-( \n" + t1.toString() + "\n" + t1.getMessage());
         }
     }
 
@@ -210,26 +101,76 @@ public class XposedMain implements IXposedHookLoadPackage {
      * Called on package load time, the actual hooks are placed HERE!! :-)
      *
      * @param lpparam load package parameter
-     * @throws Throwable if something goes wrong..
      */
     @Override
-    public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
-
-        if (ANDROID_SETTINGS_PACKAGE.equals(lpparam.packageName)) {
-            //
-            // Note: we are also targeting the system settings package here as it is
-            // running in a SE Linux context, which is allowed to write into the /sys/remote/enable
-            // file. So NO hooking is done here, we just hitchhike shortly in its SE context to
-            // write into the sysfile. That's all.. ;-)
-            //
-            log(TAG + ": We are in '" + lpparam.packageName + "' package. Trying to enable IR Blaster hardware...");
-            enableIrBlasterInBackgroundThread();
-        } else if (CONSUMER_IR_SERVICE_HOST_PACKAGE.equals(lpparam.packageName)) {
-            log(TAG + ": We are in '" + lpparam.packageName + "' package. Trying to hook Infrared API methods...");
-            hookConsumerIrService(lpparam);
+    public void handleLoadPackage(LoadPackageParam lpparam) {
+        try {
+            if (ANDROID_SETTINGS_PACKAGE.equals(lpparam.packageName)) {
+                //
+                // Note: we are also targeting the system settings package here as it is
+                // running in a SE Linux context, which is allowed to write into the /sys/remote/enable
+                // file. So NO hooking is done here, we just hitchhike shortly in its SE context to
+                // write into the sysfile. That's all.. ;-)
+                //
+                log(TAG + ": We are in '" + lpparam.packageName + "' package. Trying to enable IR Blaster hardware...");
+                enableIrBlasterInBackgroundThread();
+            } else if (ANDROID_CORE_SERVICES_PACKAGE.equals(lpparam.packageName)) {
+                log(TAG + ": We are in '" + lpparam.packageName + "' package. Trying to hook Infrared API methods...");
+                hookConsumerIrService(lpparam);
+                hookPackageManagerService(lpparam);
+            }
+        } catch (Throwable t) {
+            Log.e(TAG, "Exception in handleLoadPackage. :-(", t);
+            log(TAG + ": Exception in handleLoadPackage: " + t.toString());
         }
     }
 
+    /**
+     * Hooks the PackageManagerService so that it always will claim that it supports the Infrared API
+     * if another app is asking. To do this, we hook 2 methods: "hasSystemFeature()" and
+     * "getSystemAvailableFeatures()".
+     *
+     * @param lpparam load package parameter
+     */
+    private void hookPackageManagerService(LoadPackageParam lpparam) {
+
+        // 1) Locate class
+
+        Class<?> packageManagerClass;
+        try {
+            // https://android.googlesource.com/platform/frameworks/base/+/android-6.0.1_r74/services/core/java/com/android/server/pm/PackageManagerService.java
+            packageManagerClass = findClass("com.android.server.pm.PackageManagerService",
+                    lpparam.classLoader);
+            log(TAG + ": Located class " + packageManagerClass.getSimpleName() + ". Will try to hook its methods now. :)");
+        } catch (Throwable e) {
+            log(TAG + ": Could not find matching class 'com.android.server.pm.PackageManagerService' for hooking. Sorry, I cannot do anything. :-( :-(");
+            // abort if class not found..
+            return;
+        }
+
+
+        // 2) Hook methods
+
+        // hasSystemFeature
+        try {
+            // https://android.googlesource.com/platform/frameworks/base/+/android-6.0.1_r74/services/core/java/com/android/server/pm/PackageManagerService.java#3151
+            Method hasSystemFeature = findMethodExact(packageManagerClass, "hasSystemFeature", String.class);
+            XposedBridge.hookMethod(hasSystemFeature, hasSystemFeatureHook);
+            log(TAG + ": Successfully hooked method: " + hasSystemFeature.toGenericString() + " :-)");
+        } catch (Throwable e) {
+            log(TAG + ": Sorry, hasSystemFeature() method was not found. IR BLASTER MIGHT NOT WORK! :-(");
+        }
+
+        // getSystemAvailableFeatures
+        try {
+            // https://android.googlesource.com/platform/frameworks/base/+/android-6.0.1_r74/services/core/java/com/android/server/pm/PackageManagerService.java#3132
+            Method getSystemAvailableFeatures = findMethodExact(packageManagerClass, "getSystemAvailableFeatures");
+            XposedBridge.hookMethod(getSystemAvailableFeatures, getSystemAvailableFeaturesHook);
+            log(TAG + ": Successfully hooked method: " + getSystemAvailableFeatures.toGenericString() + " :-)");
+        } catch (Throwable e) {
+            log(TAG + ": Sorry, getSystemAvailableFeatures() method was not found. IR BLASTER MIGHT NOT WORK! :-(");
+        }
+    }
 
     /**
      * Try to hook ConsumerIrManager
@@ -237,7 +178,7 @@ public class XposedMain implements IXposedHookLoadPackage {
      * @param lpparam load package parameter
      * @throws Throwable
      */
-    private void hookConsumerIrService(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
+    private void hookConsumerIrService(LoadPackageParam lpparam) throws Throwable {
         //
         // 1) locate ConsumerIrService class..
         //
@@ -245,6 +186,7 @@ public class XposedMain implements IXposedHookLoadPackage {
         try {
             consumerIrServiceClass = findClass("com.android.server.ConsumerIrService",
                     lpparam.classLoader);
+            log(TAG + ": Located class " + consumerIrServiceClass.getSimpleName() + ". Will try to hook its methods now. :)");
         } catch (Throwable e) {
             log(TAG + ": Could not find matching class 'com.android.server.ConsumerIrService' for hooking. Sorry, I cannot do anything. :-( :-(");
             // abort if class not found..
@@ -254,34 +196,75 @@ public class XposedMain implements IXposedHookLoadPackage {
         //
         // 2) Hook methods
         //
-        try {
-            // native long com.android.server.ConsumerIrService.halOpen()
-            Method halOpenMethod = findMethodExact(consumerIrServiceClass, "halOpen");
-            XposedBridge.hookMethod(halOpenMethod, halOpenHook);
-            log(TAG + ": Successfully hooked method: " + halOpenMethod.toGenericString() + " :-)");
-        } catch (Throwable e) {
-            log(TAG + ": Sorry, halOpen() method was not found. IR BLASTER WILL NOT WORK! :-(");
-        }
 
-        try {
-            // native int halTransmit(long halObject, int carrierFrequency, int[] pattern);
-            Method halTransmitMethod = findMethodExact(consumerIrServiceClass, "halTransmit", long.class, int.class, int[].class);
-            XposedBridge.hookMethod(halTransmitMethod, transmitHook);
-            log(TAG + ": Successfully hooked method: " + halTransmitMethod.toGenericString() + " :-)");
-        } catch (Throwable e) {
-            log(TAG + ": Sorry, halTransmit() method was not found. IR BLASTER WILL NOT WORK! :-(");
-        }
-
-
+        // constructor
         try {
             // constructor, only needed to get the reference to the Context
+            // https://android.googlesource.com/platform/frameworks/base/+/android-6.0.1_r74/services/core/java/com/android/server/ConsumerIrService.java#41
             findAndHookConstructor("com.android.server.ConsumerIrService",
                     lpparam.classLoader, Context.class, constructorHook);
             log(TAG + ": Successfully hooked constructor of ConsumerIrService.class :-)");
         } catch (Throwable e) {
             log(TAG + ": Sorry, constructor of ConsumerIrService.class was not found. IR BLASTER WILL NOT WORK! :-(");
         }
+
+        // halOpen
+        try {
+            // native long com.android.server.ConsumerIrService.halOpen()
+            // https://android.googlesource.com/platform/frameworks/base/+/android-6.0.1_r74/services/core/java/com/android/server/ConsumerIrService.java#32
+            Method halOpenMethod = findMethodExact(consumerIrServiceClass, "halOpen");
+            XposedBridge.hookMethod(halOpenMethod, halOpenHook);
+            log(TAG + ": Successfully hooked method: " + halOpenMethod.toGenericString() + " :-)");
+        } catch (Throwable e) {
+            log(TAG + ": Sorry, halOpen() method was not found. IR BLASTER MIGHT NOT WORK! :-(");
+        }
+
+        // halTransmit
+        try {
+            // native int halTransmit(long halObject, int carrierFrequency, int[] pattern);
+            // https://android.googlesource.com/platform/frameworks/base/+/android-6.0.1_r74/services/core/java/com/android/server/ConsumerIrService.java#33
+            Method halTransmitMethod = findMethodExact(consumerIrServiceClass, "halTransmit", long.class, int.class, int[].class);
+            XposedBridge.hookMethod(halTransmitMethod, halTransmitHook);
+            log(TAG + ": Successfully hooked method: " + halTransmitMethod.toGenericString() + " :-)");
+        } catch (Throwable e) {
+            log(TAG + ": Sorry, halTransmit() method was not found. IR BLASTER WILL NOT WORK! :-(");
+        }
+
+        // hasIrEmitter
+        try {
+            // public boolean hasIrEmitter()
+            // https://android.googlesource.com/platform/frameworks/base/+/android-6.0.1_r74/services/core/java/com/android/server/ConsumerIrService.java#59
+            Method hasIrEmitter = findMethodExact(consumerIrServiceClass, "hasIrEmitter");
+            XposedBridge.hookMethod(hasIrEmitter, hasIrEmitterHook);
+            log(TAG + ": Successfully hooked method: " + hasIrEmitter.toGenericString() + " :-)");
+        } catch (Throwable e) {
+            log(TAG + ": Sorry, hasIrEmitter() method was not found. IR BLASTER MIGHT NOT WORK! :-(");
+        }
+
+        // getCarrierFrequencies
+        try {
+            // public int[] getCarrierFrequencies()
+            // https://android.googlesource.com/platform/frameworks/base/+/android-6.0.1_r74/services/core/java/com/android/server/ConsumerIrService.java#103
+            Method getCarrierFrequencies = findMethodExact(consumerIrServiceClass, "getCarrierFrequencies");
+            XposedBridge.hookMethod(getCarrierFrequencies, getCarrierFrequenciesHook);
+            log(TAG + ": Successfully hooked method: " + getCarrierFrequencies.toGenericString() + " :-)");
+        } catch (Throwable e) {
+            log(TAG + ": Sorry, getCarrierFrequencies() method was not found. IR BLASTER MIGHT NOT WORK! :-(");
+        }
+
+        // throwIfNoIrEmitter
+        try {
+            // private void throwIfNoIrEmitter()
+            // https://android.googlesource.com/platform/frameworks/base/+/android-6.0.1_r74/services/core/java/com/android/server/ConsumerIrService.java#63
+            // prevent that implementation throws exception when there is no native HAL loaded
+            Method throwIfNoIrEmitter = findMethodExact(consumerIrServiceClass, "throwIfNoIrEmitter");
+            XposedBridge.hookMethod(throwIfNoIrEmitter, throwIfNoIrEmitterHook);
+            log(TAG + ": Successfully hooked method: " + throwIfNoIrEmitter.toGenericString() + " :-)");
+        } catch (Throwable e) {
+            log(TAG + ": Sorry, throwIfNoIrEmitter() method was not found. IR BLASTER MIGHT NOT WORK! :-(");
+        }
     }
+
 
 }
 

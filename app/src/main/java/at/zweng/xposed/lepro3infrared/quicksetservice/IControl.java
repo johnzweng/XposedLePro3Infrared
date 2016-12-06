@@ -45,8 +45,7 @@ public class IControl {
             _data.writeInterfaceToken(ACTION);
             this._controlService.transact(13, _data, _reply, 0);
             _reply.readException();
-            int _result = _reply.readInt();
-            return _result;
+            return _reply.readInt();
         } finally {
             _reply.recycle();
             _data.recycle();
@@ -61,9 +60,9 @@ public class IControl {
      * See also:
      * https://developer.android.com/reference/android/hardware/ConsumerIrManager.html#transmit(int, int[])
      *
-     * @param carrierFrequency
-     * @param pattern
-     * @return
+     * @param carrierFrequency carrier frequency
+     * @param pattern IR pattern to send
+     * @return status
      * @throws RemoteException
      */
     public int transmit(int carrierFrequency, int[] pattern) throws RemoteException {
